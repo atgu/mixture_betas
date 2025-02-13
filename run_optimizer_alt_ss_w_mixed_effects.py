@@ -55,8 +55,6 @@ tissue=args.tissue
 tissue_file=args.tissue_file
 filter_file=args.filter_file
 
-
-
 counts=pd.read_csv(tissue_file, compression='gzip', sep=' ', index_col=0)
 
 alt_splice_sites=pd.read_csv(filter_file, compression='gzip')
@@ -335,10 +333,10 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 
             p_val_LR = LR_test(Log_Likelihood_triple[-1] - Log_Likelihood_double[-1], df = 3)
             #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF tested
-            if p_val_LR >= 0.05/len(a_raw):
-            #use double if LR is not significant
+            if p_val_LR <= 0.05/len(a_raw):
+            #use double if LR is significant
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
-            #use triple is LR is significant
+            #use triple is LR is not significant
             else: 
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
 
@@ -395,14 +393,8 @@ job_index=args.job_index
 
 
 
-
-
-
-
-
-
 #set up output df
-#itemgetter(*passed_filtering_5)
+
 output_df=pd.DataFrame({ 'intron_1': intron_1,
                 'intron_2': intron_2,  
                 'total_reads_spanning_all_junctions': sum_of_all_reads, 
