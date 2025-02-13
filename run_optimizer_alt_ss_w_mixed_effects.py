@@ -13,8 +13,9 @@ import pandas as pd
 numpy.random.seed(1)
 import argparse
 from scipy.optimize import minimize
-
+from scipy.stats import chi2
 import diptest
+
 # In[ ]:
 #ALT SS
 
@@ -73,6 +74,9 @@ splicing_events_info=alt_splice_sites[alt_splice_sites.tissue==tissue]
 counts_filtered_from_protein_coding=counts[counts.index.isin(splicing_events_info.ID)]
 
 
+
+def LR_test(LR, df=1):
+    return chi2.sf(2 * LR, df)
 
 def find_PSI_values(a, b, a_prior, b_prior, FPR):
 
@@ -199,10 +203,11 @@ def method_lbfgs(k, n, weights=None):
     bounds = None
 
     obj_func = lambda x : np.arcsinh(obj_func_(x, k, n))
+    #is this starting at 1 here for the single beta?
 
     x0=np.ones(2)
     minimized_a_b = minimize(obj_func, x0=x0, method='L-BFGS-B', bounds=bounds, options={'maxiter':100},
-                            tol=1e-6) #change back to 100 when done debugging
+                            tol=1e-6) 
     
     [a_est,b_est] = 2**minimized_a_b.x
     params = np.array([a_est, b_est, 1])
@@ -214,7 +219,8 @@ def method_lbfgs_em(k, n, n_components, em_iterations = 100):
     # initialize
     n_observations = k.shape[0]
 
-    params = np.zeros(3*n_components)
+#changed to random values
+    params = np.random.rand(3*n_components)
     for i in range(n_components):
         params[i] = 1 + i
         params[i + n_components] = 1 + n_components - i
@@ -239,6 +245,9 @@ def method_lbfgs_em(k, n, n_components, em_iterations = 100):
         minimized_a_b_function.append(obj_func)
         LogL.append(compute_log_likelihood(k, n, params))
     return params, LogL, minimized_a_b_function
+
+
+
 
 # Function
 # --
@@ -322,19 +331,30 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
         
         #minimize function of single component if and only if the diptest is not sigificant (BF corrected in tissue)
 # minimize function of single component if and only if the diptest is not significant (BF corrected in tissue)
-        if pval >= 1/len(a_raw):
+        if pval >= 0.05/len(a_raw):
             params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
         
-        # perform the EM algorithm with 2 components if the diptest is significant (assumption of unimodality can be rejected)
+        # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected)
         else:
-            double_params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
-            params=double_params
-            # if one of alphas and betas are under 1, then there is a u-shaped curve. then try a triple:
+            double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
+            #params=double_params
+            
 
-            #params_order=[alpha1,alpha2,beta1,beta2,w1,w2]
-            if (double_params[0] < 1 & double_params[2] < 1) | (double_params[1] < 1 & double_params[2] < 1):
-                triple_params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
-                params=triple_params
+            triple_params, Log_Likelihood_triple, minimized_a_b_triple = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
+            #params=triple_params
+
+
+            p_val_LR = LR_test(Log_Likelihood_triple - Log_Likelihood_double, df = 4)
+            #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF tested
+            if p_val_LR >= 0.05/len(a_raw):
+            #use triple
+                [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
+            #use triple
+            else: 
+                [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
+
+
+
 
         output_of_min_funcs.append(minimized_a_b)
 

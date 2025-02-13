@@ -1,7 +1,7 @@
 FROM python:3.8-slim-bullseye
 
 RUN apt update && apt install -y wget curl python3-pip locales unzip
-RUN pip3 install pandas wget numpy scipy tqdm diptest
+RUN pip3 install pandas wget numpy scipy tqdm diptest 
 
 LABEL added_three_component=True
 COPY run_optimizer_alt_ss_w_mixed_effects.py /home/

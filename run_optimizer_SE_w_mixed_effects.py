@@ -28,7 +28,8 @@ parser.add_argument("--tissue", type=str)
 parser.add_argument("--tissue_file", type=str)
 parser.add_argument("--filter_file", type=str)
 parser.add_argument("-o", "--output_file", help="Directs the output to a name of your choice")
-
+parser.add_argument("--num_jobs", type=int)
+parser.add_argument("--job_index", type=int)
 
 args = parser.parse_args()
 
@@ -114,17 +115,17 @@ total_reads_supporting_unskipped = unskipped_top_counts_give_tissue.loc[:, ~unsk
 #pick the exon with less total reads across all individuals 
 skipped_is_lower_PSI = total_reads_supporting_skipped <= total_reads_supporting_unskipped
 
-unskipped_1_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
+unskipped_top_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
 skipped_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
-unskipped_2_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
+#unskipped_2_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
 ####assign cluster names
 cluster_name = unskipped_1_counts_give_tissue.ID + '_' + skipped_counts_give_tissue.ID + '_' + unskipped_2_counts_give_tissue.ID.apply(lambda x: x.split(':clu')[0]) 
 
-unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue.assign(cluster_name=cluster_name)
-unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue.assign(cluster_name=cluster_name)
+#unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue.assign(cluster_name=cluster_name)
+#unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue.assign(cluster_name=cluster_name)
 skipped_counts_give_tissue=skipped_counts_give_tissue.assign(cluster_name=cluster_name)
 unskipped_top_counts_give_tissue=unskipped_top_counts_give_tissue.assign(cluster_name=cluster_name)
 
@@ -155,6 +156,8 @@ beta_counts = b.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','cl
 
 a_w_names=alpha_counts.sort_index()
 b_w_names=beta_counts.sort_index()
+print(a_w_names)
+print(b_w_names)
 
 
 def compute_log_likelihood(k, n, params):
