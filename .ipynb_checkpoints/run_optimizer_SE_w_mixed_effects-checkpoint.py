@@ -103,7 +103,23 @@ skipped_counts_give_tissue=skipped_counts_give_tissue[filtered_exons==True]
 unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue[filtered_exons==True]
 unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue[filtered_exons==True]
 
-unskipped_top_counts_give_tissue = unskipped_1_counts_give_tissue.mask(unskipped_1_counts_give_tissue < unskipped_2_counts_give_tissue, unskipped_2_counts_give_tissue)
+
+mask = np.random.rand(*unskipped_1_counts_give_tissue.shape) < 0.5
+
+# Use np.where to create a new array with values chosen from one of the two DataFrames.
+random_array = np.where(
+    mask, 
+    unskipped_1_counts_give_tissue.to_numpy(), 
+    unskipped_2_counts_give_tissue.to_numpy()
+)
+
+# Create a new DataFrame with the same index and columns as the original DataFrames.
+unskipped_top_counts_give_tissue = pd.DataFrame(random_array, 
+                         index=unskipped_1_counts_give_tissue.index, 
+                         columns=unskipped_1_counts_give_tissue.columns)
+
+
+#unskipped_top_counts_give_tissue = unskipped_1_counts_give_tissue.mask(unskipped_1_counts_give_tissue < unskipped_2_counts_give_tissue, unskipped_2_counts_give_tissue)
 
 
 #figure out which event is lower: skipped or unskipped

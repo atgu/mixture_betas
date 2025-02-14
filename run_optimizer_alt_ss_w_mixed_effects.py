@@ -281,6 +281,11 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
     
     intron_1=[]
     intron_2=[]
+    est_LL_triple=[]
+    est_LL_double=[]
+    params_triple=[]
+    params_double=[]
+
     
     for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
         cluster_name=counts_df_a.index[i]+'_'+counts_df_b.index[i]
@@ -319,7 +324,10 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 # minimize function of single component if and only if the diptest is not significant (BF corrected in tissue)
         if pval >= 0.05/len(a_raw):
             params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
-        
+            est_LL_triple.append(np.nan)
+            est_LL_double.append(np.nan)
+            params_triple.append(np.nan)
+            params_double.append(np.nan)
         # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected)
         else:
             double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
@@ -339,10 +347,13 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
             #use triple is LR is not significant
             else: 
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
+            est_LL_triple.append(Log_Likelihood_triple)
+            est_LL_double.append(Log_Likelihood_double)
+            params_triple.append(triple_params)
+            params_double.append(double_params)
+        
 
-
-
-
+        
         output_of_min_funcs.append(minimized_a_b)
 
         est_alphas_and_betas_list.append(params)
@@ -385,24 +396,24 @@ def calc_exon_frequencies(counts_df_a, counts_df_b, a_estimates, b_estimates, lo
 
 
 
-# # run emp bayes to generate alphas and betas
+# run emp bayes to generate alphas and betas
 num_jobs=args.num_jobs
 job_index=args.job_index
 
 [est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2 ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
 
-
-
-#set up output df
-
-output_df=pd.DataFrame({ 'intron_1': intron_1,
+output_df=pd.DataFrame( {'intron_1': intron_1,
                 'intron_2': intron_2,  
                 'total_reads_spanning_all_junctions': sum_of_all_reads, 
                 'function_output_emp_bayes':output_of_min_funcs,
-                       'cluster_name':cluster_names,
-                       'number_people_in_sample':len(a_w_names.columns),
+                'cluster_name':cluster_names,
+                'number_people_in_sample':len(a_w_names.columns),
                 'params': est_alphas_and_betas_list,
-                        'LogLikelihood':est_LL})
+                'LogLikelihood':est_LL,
+                'LogLikelihood_triple':est_LL_triple,
+                'LogLikelihood_double':est_LL_double,
+                'params_triple':params_triple
+                'params_double':params_double} )
 
 
 
