@@ -276,7 +276,8 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 
     a_raw=counts_df_a.values
     b_raw=counts_df_b.values
-    
+    if i==0:
+        print(len(a_raw))    
     dip_results_pval=[]
     
     intron_1=[]
@@ -286,7 +287,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
     params_triple=[]
     params_double=[]
 
-    
+    not_sucesses=[]
     for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
         cluster_name=counts_df_a.index[i]+'_'+counts_df_b.index[i]
         intron_1_single=counts_df_a.index[i]
@@ -328,25 +329,29 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
             est_LL_double.append(np.nan)
             params_triple.append(np.nan)
             params_double.append(np.nan)
-        # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected)
+
+
+
+        # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected), then perform LR test
         else:
             double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
-            #params=double_params
-            
+
 
             triple_params, Log_Likelihood_triple, minimized_a_b_triple = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
-            #params=triple_params
-            print(Log_Likelihood_triple)
-            print(Log_Likelihood_double)
+
 
             p_val_LR = LR_test(Log_Likelihood_triple[-1] - Log_Likelihood_double[-1], df = 3)
-            #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF tested
-            if p_val_LR <= 0.05/len(a_raw):
+            #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF corrected
+            
+            #use double if LR is not significant
+            if p_val_LR > 0.05/len(a_raw):
             #use double if LR is significant
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
-            #use triple is LR is not significant
-            else: 
+            #use triple is LR is significant
+            elif  p_val_LR <= 0.05/len(a_raw):
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
+
+
             est_LL_triple.append(Log_Likelihood_triple)
             est_LL_double.append(Log_Likelihood_double)
             params_triple.append(triple_params)
@@ -368,7 +373,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 
   
     
-    not_sucesses=np.where([fun.success==False for fun in output_of_min_funcs[-1]])
+    not_sucesses.append(np.where([fun.success==False for fun in output_of_min_funcs[-1]]))
 
 
     print('there are '+str(len(not_sucesses))+' minimizations that dont converge!')
@@ -376,22 +381,9 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 
 
     
-    return est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2
+    return est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2, est_LL_triple, est_LL_double, params_triple, params_double
         
-def calc_exon_frequencies(counts_df_a, counts_df_b, a_estimates, b_estimates, lower_bound, FPR):
-        exon_frequencies=[]
-  
-        passed_filtering=[]
-        EF_lower_bound=[]
-        EF_upper_bound=[]
-        a_raw=counts_df_a.values
-        b_raw=counts_df_b.values
-        i=0
 
-        for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
-            
-            a_est=a_estimates[i]
-            b_est=b_estimates[i]
            
 
 
@@ -400,7 +392,7 @@ def calc_exon_frequencies(counts_df_a, counts_df_b, a_estimates, b_estimates, lo
 num_jobs=args.num_jobs
 job_index=args.job_index
 
-[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2 ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
+[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2,  est_LL_triple, est_LL_double, params_triple, params_double ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
 
 output_df=pd.DataFrame( {'intron_1': intron_1,
                 'intron_2': intron_2,  
@@ -412,7 +404,7 @@ output_df=pd.DataFrame( {'intron_1': intron_1,
                 'LogLikelihood':est_LL,
                 'LogLikelihood_triple':est_LL_triple,
                 'LogLikelihood_double':est_LL_double,
-                'params_triple':params_triple
+                'params_triple':params_triple,
                 'params_double':params_double} )
 
 
