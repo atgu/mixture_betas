@@ -66,7 +66,7 @@ counts_filtered_from_protein_coding=counts[counts.index.isin(splicing_events_inf
 
 
 def LR_test(LR, df=1):
-    return chi2.sf(2 * LR, df)
+    return chi2.sf(-2 * LR, df)
 
 def find_PSI_values(a, b, a_prior, b_prior, FPR):
 
@@ -286,7 +286,8 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
     est_LL_double=[]
     params_triple=[]
     params_double=[]
-
+    p_values_for_diptest=[]
+    p_values_for_LR_test=[]
     not_sucesses=[]
     for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
         cluster_name=counts_df_a.index[i]+'_'+counts_df_b.index[i]
@@ -314,7 +315,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
         stat,pval=diptest.diptest(psi)
         dip_results_pval.append(pval)
         
-        
+        p_values_for_diptest.append(p_val)
 
 ############################# 1. calculate empirical bayes using chosen method depending on diptest and LR ############################
 
@@ -329,7 +330,8 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
             est_LL_double.append(np.nan)
             params_triple.append(np.nan)
             params_double.append(np.nan)
-
+            p_values_for_LR_test.append(np.nan)
+            
 
 
         # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected), then perform LR test
@@ -351,13 +353,13 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
             elif  p_val_LR <= 0.05/len(a_raw):
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
 
-
+            p_values_for_LR_test.append(p_val_LR)
             est_LL_triple.append(Log_Likelihood_triple)
             est_LL_double.append(Log_Likelihood_double)
             params_triple.append(triple_params)
             params_double.append(double_params)
         
-
+        
         
         output_of_min_funcs.append(minimized_a_b)
 
@@ -381,7 +383,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 
 
     
-    return est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2, est_LL_triple, est_LL_double, params_triple, params_double
+    return est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2, est_LL_triple, est_LL_double, params_triple, params_double, p_values_for_LR_test, p_values_for_diptest
         
 
            
@@ -392,7 +394,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
 num_jobs=args.num_jobs
 job_index=args.job_index
 
-[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2,  est_LL_triple, est_LL_double, params_triple, params_double ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
+[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2,  est_LL_triple, est_LL_double, params_triple, params_double, p_values_for_LR_test,p_values_for_diptest ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
 
 output_df=pd.DataFrame( {'intron_1': intron_1,
                 'intron_2': intron_2,  
@@ -405,7 +407,9 @@ output_df=pd.DataFrame( {'intron_1': intron_1,
                 'LogLikelihood_triple':est_LL_triple,
                 'LogLikelihood_double':est_LL_double,
                 'params_triple':params_triple,
-                'params_double':params_double} )
+                'params_double':params_double,
+                'pvalue_LR':p_values_for_LR_test,
+                'pvalue_dip':p_values_for_diptest} )
 
 
 
