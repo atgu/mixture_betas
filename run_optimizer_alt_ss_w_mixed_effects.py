@@ -315,7 +315,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
         stat,pval=diptest.diptest(psi)
         dip_results_pval.append(pval)
         
-        p_values_for_diptest.append(p_val)
+        p_values_for_diptest.append(pval)
 
 ############################# 1. calculate empirical bayes using chosen method depending on diptest and LR ############################
 
@@ -324,33 +324,33 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
         
         #minimize function of single component if and only if the diptest is not sigificant (BF corrected in tissue)
 # minimize function of single component if and only if the diptest is not significant (BF corrected in tissue)
-        if pval >= 0.05/len(a_raw):
-            params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
-            est_LL_triple.append(np.nan)
-            est_LL_double.append(np.nan)
-            params_triple.append(np.nan)
-            params_double.append(np.nan)
-            p_values_for_LR_test.append(np.nan)
+        #if pval >= 0.05/len(a_raw):
+            #params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
+            #est_LL_triple.append(np.nan)
+            #est_LL_double.append(np.nan)
+            #params_triple.append(np.nan)
+            #params_double.append(np.nan)
+            #p_values_for_LR_test.append(np.nan)
             
 
 
         # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected), then perform LR test
-        else:
-            double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
+        #else:
+        double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
 
 
-            triple_params, Log_Likelihood_triple, minimized_a_b_triple = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
+        triple_params, Log_Likelihood_triple, minimized_a_b_triple = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
 
 
-            p_val_LR = LR_test(Log_Likelihood_triple[-1] - Log_Likelihood_double[-1], df = 3)
+        p_val_LR = LR_test(Log_Likelihood_triple[-1] - Log_Likelihood_double[-1], df = 3)
             #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF corrected
             
             #use double if LR is not significant
-            if p_val_LR > 0.05/len(a_raw):
+        if p_val_LR > 0.05/len(a_raw):
             #use double if LR is significant
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
             #use triple is LR is significant
-            elif  p_val_LR <= 0.05/len(a_raw):
+        elif  p_val_LR <= 0.05/len(a_raw):
                 [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
 
             p_values_for_LR_test.append(p_val_LR)

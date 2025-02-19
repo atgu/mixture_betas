@@ -103,7 +103,6 @@ skipped_counts_give_tissue=skipped_counts_give_tissue[filtered_exons==True]
 unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue[filtered_exons==True]
 unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue[filtered_exons==True]
 
-
 mask = np.random.rand(*unskipped_1_counts_give_tissue.shape) < 0.5
 
 # Use np.where to create a new array with values chosen from one of the two DataFrames.
