@@ -348,16 +348,16 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
             #use double if LR is not significant
         if p_val_LR > 0.05/len(a_raw):
             #use double if LR is significant
-                [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
+            [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
             #use triple is LR is significant
         elif  p_val_LR <= 0.05/len(a_raw):
-                [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
+            [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
 
-            p_values_for_LR_test.append(p_val_LR)
-            est_LL_triple.append(Log_Likelihood_triple)
-            est_LL_double.append(Log_Likelihood_double)
-            params_triple.append(triple_params)
-            params_double.append(double_params)
+        p_values_for_LR_test.append(p_val_LR)
+        est_LL_triple.append(Log_Likelihood_triple)
+        est_LL_double.append(Log_Likelihood_double)
+        params_triple.append(triple_params)
+        params_double.append(double_params)
         
         
         

@@ -13,7 +13,8 @@ import pandas as pd
 numpy.random.seed(1)
 import argparse
 from scipy.optimize import minimize
-
+import diptest
+from scipy.stats import chi2
 
 # In[ ]:
 #ALT SS
@@ -103,34 +104,38 @@ skipped_counts_give_tissue=skipped_counts_give_tissue[filtered_exons==True]
 unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue[filtered_exons==True]
 unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue[filtered_exons==True]
 
-mask = np.random.rand(*unskipped_1_counts_give_tissue.shape) < 0.5
+def combine_random_rows(df1, df2):
+    # Ensure both DataFrames have the same number of rows
+    if len(df1) != len(df2):
+        raise ValueError("Both DataFrames must have the same number of rows.")
 
-# Use np.where to create a new array with values chosen from one of the two DataFrames.
-random_array = np.where(
-    mask, 
-    unskipped_1_counts_give_tissue.to_numpy(), 
-    unskipped_2_counts_give_tissue.to_numpy()
-)
+    selected_rows = []
+    # Loop through each row index
+    for i in range(len(df1)):
+        # Randomly choose either 0 or 1 with equal probability
+        if np.random.rand() < 0.5:
+            selected_rows.append(df1.iloc[i])
+        else:
+            selected_rows.append(df2.iloc[i])
+    
+    # Create a new DataFrame from the selected rows
+   # new_df = pd.DataFrame(selected_rows).reset_index(drop=True)
+    new_df = pd.DataFrame(selected_rows)
+    return new_df
 
-# Create a new DataFrame with the same index and columns as the original DataFrames.
-unskipped_top_counts_give_tissue = pd.DataFrame(random_array, 
-                         index=unskipped_1_counts_give_tissue.index, 
-                         columns=unskipped_1_counts_give_tissue.columns)
-
-
-#unskipped_top_counts_give_tissue = unskipped_1_counts_give_tissue.mask(unskipped_1_counts_give_tissue < unskipped_2_counts_give_tissue, unskipped_2_counts_give_tissue)
-
+# Use the function to create the new DataFrame
+unskipped_random_chosen_counts_give_tissue = combine_random_rows(unskipped_1_counts_give_tissue, unskipped_2_counts_give_tissue)
 
 #figure out which event is lower: skipped or unskipped
 total_reads_supporting_skipped =  skipped_counts_give_tissue.loc[:, ~skipped_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=1)
 
-total_reads_supporting_unskipped = unskipped_top_counts_give_tissue.loc[:, ~unskipped_top_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=1)
+total_reads_supporting_unskipped = unskipped_random_chosen_counts_give_tissue.loc[:, ~unskipped_random_chosen_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=1)
 
 
 #pick the exon with less total reads across all individuals 
-skipped_is_lower_PSI = total_reads_supporting_skipped <= total_reads_supporting_unskipped
+skipped_is_lower_PSI = total_reads_supporting_skipped.values <= total_reads_supporting_unskipped.values
 
-unskipped_top_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
+unskipped_random_chosen_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
 skipped_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
@@ -142,20 +147,21 @@ cluster_name = unskipped_1_counts_give_tissue.ID + '_' + skipped_counts_give_tis
 #unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue.assign(cluster_name=cluster_name)
 #unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue.assign(cluster_name=cluster_name)
 skipped_counts_give_tissue=skipped_counts_give_tissue.assign(cluster_name=cluster_name)
-unskipped_top_counts_give_tissue=unskipped_top_counts_give_tissue.assign(cluster_name=cluster_name)
+unskipped_random_chosen_counts_give_tissue=unskipped_random_chosen_counts_give_tissue.assign(cluster_name=cluster_name)
 
 ####assign to alphas anmd betas
 a_i = skipped_counts_give_tissue[skipped_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
-a_2 = unskipped_top_counts_give_tissue[~unskipped_top_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
+a_2 = unskipped_random_chosen_counts_give_tissue[~unskipped_random_chosen_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
-b_i = unskipped_top_counts_give_tissue[unskipped_top_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
+b_i = unskipped_random_chosen_counts_give_tissue[unskipped_random_chosen_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
 b_2 = skipped_counts_give_tissue[~skipped_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
 #prepare for optimizer
 a=pd.concat([a_i, a_2])
 b=pd.concat([b_i, b_2])
+
 
 cluster_names = a.cluster_name
 
@@ -165,15 +171,11 @@ alpha_counts = a.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','c
 
 beta_counts = b.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','cluster_name']))
 
+################### algorthm as same as alt ss now
 
-# run algorthm as same as alt ss - ADD once done
 
-
-a_w_names=alpha_counts.sort_index()
-b_w_names=beta_counts.sort_index()
-print(a_w_names)
-print(b_w_names)
-
+def LR_test(LR, df=1):
+    return chi2.sf(-2 * LR, df)
 
 def compute_log_likelihood(k, n, params):
     # compute log( \prod_j \sum_i pi_i pmf(k_j, n_j, a, b) )
@@ -270,13 +272,13 @@ def est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, n_components, em_
        # break
     return params, LogL, minimized_a_b_function
 
-def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_transform, num_jobs, job_index):
+def est_alphas_and_betas(counts_df_a, counts_df_b, cluster_names, power_transform, arcsin_transform, num_jobs, job_index):
     i=0
 
     FPR=0.05
 
 
-    cluster_names=[]
+    
     output_of_min_funcs=[]
     sum_of_all_reads=[]
     est_alphas_and_betas_list=[]
@@ -286,16 +288,18 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
     b_raw=counts_df_b.values
     
     dip_results_pval=[]
-    
-    intron_1=[]
-    intron_2=[]
+    final_cluster_names=[]
+ 
+    est_LL_triple=[]
+    est_LL_double=[]
+    params_triple=[]
+    params_double=[]
+    p_values_for_diptest=[]
+    p_values_for_LR_test=[]
+    not_sucesses=[]   
     
     for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
-        cluster_name=counts_df_a.index[i]+'_'+counts_df_b.index[i]
-        intron_1_single=counts_df_a.index[i]
-        intron_2_single=counts_df_b.index[i]
 
-        
         i+=1
         if i % num_jobs != job_index:
             continue
@@ -312,99 +316,98 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, power_transform, arcsin_trans
         sum_of_all_reads.append(n.sum())
 
         
+        
         # perform the diptest across all PSI when there are are at least 1 count across both exons
         stat,pval=diptest.diptest(psi)
         dip_results_pval.append(pval)
         
-        
+        p_values_for_diptest.append(pval)
 
-############################# 1. calculate empirical bayes using chosen method depending on diptest ############################
+############################# 1. calculate empirical bayes using chosen method depending on diptest and LR ############################
 
         #intialize priors
         x0=np.ones(2)
         
         #minimize function of single component if and only if the diptest is not sigificant (BF corrected in tissue)
 # minimize function of single component if and only if the diptest is not significant (BF corrected in tissue)
-        if pval >= 1/len(a_raw):
-            params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
+        #if pval >= 0.05/len(a_raw):
+            #params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 1)
+            #est_LL_triple.append(np.nan)
+            #est_LL_double.append(np.nan)
+            #params_triple.append(np.nan)
+            #params_double.append(np.nan)
+            #p_values_for_LR_test.append(np.nan)
+            
+
+
+        # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected), then perform LR test
+        #else:
+        double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
+
+
+        triple_params, Log_Likelihood_triple, minimized_a_b_triple = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
+
+
+        p_val_LR = LR_test(Log_Likelihood_triple[-1] - Log_Likelihood_double[-1], df = 3)
+            #DOF is 4 for these two tests: if pvalue is larger than alpha/len(a_raw) - BF corrected
+            
+            #use double if LR is not significant
+        if p_val_LR > 0.05/len(a_raw):
+            #use double if LR is significant
+            [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_double, minimized_a_b_double, double_params]
+            #use triple is LR is significant
+        elif  p_val_LR <= 0.05/len(a_raw):
+            [Log_Likelihood, minimized_a_b, params]=[Log_Likelihood_triple, minimized_a_b_triple, triple_params]
+
+        p_values_for_LR_test.append(p_val_LR)
+        est_LL_triple.append(Log_Likelihood_triple)
+        est_LL_double.append(Log_Likelihood_double)
+        params_triple.append(triple_params)
+        params_double.append(double_params)
         
-        # perform the EM algorithm with 2 components if the diptest is significant (assumption of unimodality can be rejected)
-        else:
-            double_params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
-            params=double_params
-            # if one of alphas and betas are under 1, then there is a u-shaped curve. then try a triple:
-
-            #params_order=[alpha1,alpha2,beta1,beta2,w1,w2]
-            if (double_params[0] < 1 & double_params[2] < 1) | (double_params[1] < 1 & double_params[2] < 1):
-                triple_params, Log_Likelihood, minimized_a_b = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 3)
-                params=triple_params
-
+        
+        
         output_of_min_funcs.append(minimized_a_b)
 
         est_alphas_and_betas_list.append(params)
         
         est_LL.append(Log_Likelihood)
 
-        intron_1.append(intron_1_single)
 
-        intron_2.append(intron_2_single)
-
-        cluster_names.append(cluster_name)
-
-  
+        final_cluster_names.append(final_cluster_names)
     
-    not_sucesses=np.where([fun.success==False for fun in output_of_min_funcs[-1]])
-
-
-    print('there are '+str(len(not_sucesses))+' minimizations that dont converge!')
-    print(not_sucesses)
-
-
-    
-    return est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2
+    return est_alphas_and_betas_list, output_of_min_funcs, final_cluster_names, est_LL, sum_of_all_reads,  est_LL_triple, est_LL_double, params_triple, params_double, p_values_for_LR_test, p_values_for_diptest
         
-def calc_exon_frequencies(counts_df_a, counts_df_b, a_estimates, b_estimates, lower_bound, FPR):
-        exon_frequencies=[]
-  
-        passed_filtering=[]
-        EF_lower_bound=[]
-        EF_upper_bound=[]
-        a_raw=counts_df_a.values
-        b_raw=counts_df_b.values
-        i=0
 
-        for exon_a,exon_b in tqdm(zip(a_raw, b_raw)):
-            
-            a_est=a_estimates[i]
-            b_est=b_estimates[i]
            
 
 
 
-# # run emp bayes to generate alphas and betas
+# run emp bayes to generate alphas and betas
 num_jobs=args.num_jobs
 job_index=args.job_index
 
-[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, intron_1, intron_2 ] = est_alphas_and_betas(a_w_names,b_w_names, True,True, num_jobs, job_index)
 
+[est_alphas_and_betas_list, output_of_min_funcs, cluster_names, est_LL, sum_of_all_reads, est_LL_triple, est_LL_double, params_triple, params_double, p_values_for_LR_test,p_values_for_diptest ] = est_alphas_and_betas(alpha_counts,beta_counts, cluster_names, True,True, num_jobs, job_index)
 
-
-
-
-
-
-
-
-#set up output df
-#itemgetter(*passed_filtering_5)
-output_df=pd.DataFrame({ 'intron_1': intron_1,
-                'intron_2': intron_2,  
+output_df=pd.DataFrame( {
                 'total_reads_spanning_all_junctions': sum_of_all_reads, 
                 'function_output_emp_bayes':output_of_min_funcs,
-                       'cluster_name':cluster_names,
-                       'number_people_in_sample':len(a_w_names.columns),
+                'cluster_name':list(cluster_names),
+                'number_people_in_sample':len(alpha_counts.columns),
                 'params': est_alphas_and_betas_list,
-                        'LogLikelihood':est_LL})
+                'LogLikelihood':est_LL,
+                'LogLikelihood_triple':est_LL_triple,
+                'LogLikelihood_double':est_LL_double,
+                'params_triple':params_triple,
+                'params_double':params_double,
+                'pvalue_LR':p_values_for_LR_test,
+                'pvalue_dip':p_values_for_diptest} )
+
+
+
+
+
 
 
 

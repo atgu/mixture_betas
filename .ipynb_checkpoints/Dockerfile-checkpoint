@@ -7,5 +7,6 @@ LABEL added_three_component=True
 COPY run_optimizer_alt_ss_w_mixed_effects.py /home/
 COPY run_optimizer_SE_w_mixed_effects.py /home/
 COPY assign_EF.py /home/
+COPY combine_files.sh /home/
 #COPY splicing_stats /home/
 
