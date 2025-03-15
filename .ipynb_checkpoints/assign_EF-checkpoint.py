@@ -3,13 +3,14 @@
 
 # In[1]:
 
-
+import os 
 import pandas as pd
 import numpy as np
 import scipy
-from scipy.stats import beta
+import fsspec
 import argparse
-
+import gcsfs
+from scipy.stats import beta
 
 # In[2]:
 
@@ -25,6 +26,7 @@ args = parser.parse_args()
 tissue_name=args.tissue_name
 
 input_directory=args.input_directory
+
 
 
 # In[5]:
@@ -112,37 +114,7 @@ def mixture_calc_EF(EF_as_percent, params):
     
     
     
-def parse_LL_array(s):
-    s = s.strip("[]")
-    parts = s.split(",")
-    return np.array([float(x.strip()) for x in parts], dtype=np.float64)
-        
-    
-  
-    
-    
-def parse_params_arr(arr_str: str) -> np.ndarray:
-        # Remove the leading/trailing brackets
-    arr_str = arr_str.strip("[]")
-        # Split on any whitespace
-    split_vals = arr_str.split()
-        # Convert each piece to float (handles 1.23, 1.2e+01, etc.)
-    float_vals = [float(x) for x in split_vals]
-    return np.array(float_vals)
-    
-    
-def process_df_to_arrays(low_sampled_exons):
-        LogLikelihood = low_sampled_exons.LogLikelihood.apply(parse_LL_array)
-        low_sampled_exons=low_sampled_exons.assign(LogLikelihood_as_arr=LogLikelihood)
-        
-        
-        params = low_sampled_exons.params.apply(parse_params_arr)
-        low_sampled_exons=low_sampled_exons.assign(params_as_arr=params)
 
-  
-        return low_sampled_exons
-
-        return low_sampled_exons
 
 
  
@@ -153,15 +125,15 @@ def import_params_file(files):
     
     #files = os.listdir(output_dir)
     
-    for f in [files]:
+    for f in files:
         try:
             #if 'EF_' in f and 'alt' in f.split('EF_')[1].split('_')[0]:
-            file_path = os.path.join(output_dir, f)
-            df_chunks = pd.read_csv(file_path, low_memory=False, chunksize=100000)
+            
+            df_chunks = pd.read_csv(f, low_memory=False, chunksize=100000, compression='gzip')
             df = pd.concat(list(df_chunks), ignore_index=True)  # Convert chunks to a single DataFrame
                 
                 # Extract attributes from the filename
-            tissue = f.split('mixture_')[1].split('.csv')[0] if 'mixture_' in f else 'unknown'
+            tissue = f.split('mixture_')[1].split('.csv.gz')[0] if 'mixture_' in f else 'unknown'
             splicing_event = f.split('EF_')[1].split('_')[0] if 'EF_' in f else 'unknown'
 
             df = df[df.pvalue_dip != 'pvalue_dip']  # Remove potential header duplication
@@ -179,10 +151,9 @@ def import_params_file(files):
 
 def get_EFs_dfs(file):
     all_EFs_df = import_params_file(file)
+    print(all_EFs_df.columns)
     # List of columns to convert
-    cols_to_convert = ['params', 'LogLikelihood',
-           'LogLikelihood_triple', 'LogLikelihood_double', 'params_triple',
-           'params_double']
+    cols_to_convert = ['params', 'LogLikelihood', 'LogLikelihood_triple', 'LogLikelihood_double', 'params_triple', 'params_double']
     
 
     all_EFs_df[cols_to_convert] = all_EFs_df[cols_to_convert].applymap(lambda s: np.fromstring(s.strip("[]"), sep=" ") if isinstance(s, str) else np.nan)
@@ -192,14 +163,12 @@ def get_EFs_dfs(file):
 
 
 
-directory_path = input_directory
-files=os.listdir(directory_path)
-tissue_files=[]
-for file in os.listdir(directory_path):
-    if tissue_name in file:
-        tissue_files.append(file)
+files = [
+    input_directory + 'all_EF_SEs_alphas_and_betas_from_mixture_' + tissue_name + '.csv.gz',
+    input_directory + 'all_EF_alt_ss_alphas_and_betas_from_mixture_' + tissue_name + '.csv.gz'
+]
 
-df_w_params=get_EFs_dfs(tissue_files)
+df_w_params=get_EFs_dfs(files)
 
 dict_of_params=dict(zip(df_w_params.index, df_w_params.params_triple))
 
@@ -207,9 +176,13 @@ params_as_matrix = np.array(list(dict_of_params.values()))  # Shape (rows, 9)
 
 matrix = np.zeros((len(dict_of_params), 4))  # Ensure correct shape
 
-for j, percent in enumerate([0.01, 0.05, 0.1, 0.2]):
 
-    matrix[:,j]=np.apply_along_axis(mixture_calc_EF, 1, params_as_matrix, percent)
+for j, percent in enumerate([1, 5, 10, 20]):
+    
+    percent_array = np.tile(percent, (len(dict_of_params.keys()), 1))
+
+
+    matrix[:, j] = np.array([mixture_calc_EF(row, params) for row, params in zip(percent_array, params_as_matrix)])
 
 EFs=pd.DataFrame({'EF_1':matrix[:,0],
             'EF_5':matrix[:,1],
@@ -217,7 +190,7 @@ EFs=pd.DataFrame({'EF_1':matrix[:,0],
             'EF_20':matrix[:,3]})
 
 
-pd.concat([example_df, EFs], axis=1)
+df_w_params_w_EFs=pd.concat([df_w_params, EFs], axis=1)
 
 
 #optimizer_results_converged=optimizer_results_converged.assign(passed_min_threshold_in_tissue=passed_EF_5_threshold)
@@ -227,8 +200,8 @@ pd.concat([example_df, EFs], axis=1)
 
 
 #write output df
-with open(args.output_file, 'w') as output_file:
-    optimizer_results_converged.to_csv(output_file)
+df_w_params_w_EFs.to_csv(args.output_file, compression='gzip', index=False)
+
     
 
 
