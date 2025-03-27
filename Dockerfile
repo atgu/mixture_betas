@@ -8,6 +8,9 @@ LABEL added_three_component=True
 COPY run_optimizer_alt_ss_w_mixed_effects.py /home/
 COPY run_optimizer_SE_w_mixed_effects.py /home/
 COPY assign_EF.py /home/
+COPY assign_cluster_names.py /home/
+COPY run_optimizer_SE_w_mixed_effects_unskipped_1.py /home/
+COPY run_optimizer_SE_w_mixed_effects_unskipped_2.py /home/
 
 #COPY splicing_stats /home/
 
