@@ -33,6 +33,8 @@ input_directory=args.input_directory
 
 
 
+
+
 def mixture_calc_EF(EF_percent, params):
   
   
@@ -129,43 +131,64 @@ def get_EFs_dfs(file):
 
     return all_EFs_df
 
+
 files = [
-    input_directory + 'all_EF_SEs_alphas_and_betas_from_mixture_' + tissue_name + '.csv.gz',
-    input_directory + 'all_EF_alt_ss_alphas_and_betas_from_mixture_' + tissue_name + '.csv.gz'
+    input_directory + 'SE_' + tissue_name + '.csv.gz',
+    input_directory +  tissue_name + '.csv.gz'
 ]
 # In[15]:
 SEs=get_EFs_dfs(files[0])
+SEs=SEs
 
 alt_ss=get_EFs_dfs(files[1])
 
-df_w_params = pd.concat([SEs, alt_ss])
+df_w_params_uncleaned = pd.concat([SEs, alt_ss])
 
-okay_rows = df_w_params[ df_w_params['params_triple'].apply(lambda arr: arr.size != 9) ]
-#print(len(bad_rows), "rows do not have exactly 9 parameters.")
-
-df_w_params=df_w_params[okay_rows==True]
-
-dict_of_params=dict(zip(df_w_params.index, df_w_params.params_triple))
-
-params_as_matrix = np.array(list(dict_of_params.values()))  # Shape (rows, 9)
-
-matrix = np.zeros((len(dict_of_params), 4))  # Ensure correct shape
+df_w_params=df_w_params_uncleaned[df_w_params_uncleaned.total_reads_spanning_all_junctions!='total_reads_spanning_all_junctions']
 
 
-for j, percent in enumerate([0.01, 0.05, 0.1, 0.2]):
+def calc_EF(df):
+    EF_1 = df.params_triple.apply(lambda x: mixture_calc_EF(0.01,x))
     
-    percent_array = np.tile(percent, (len(dict_of_params.keys()), 1))
+    df=df.assign(EF_1=EF_1)
+    
+    EF_5 = df.params_triple.apply(lambda x: mixture_calc_EF(0.05,x))
+    
+    df=df.assign(EF_5=EF_5)
+    
+    EF_10 = df.params_triple.apply(lambda x: mixture_calc_EF(0.1,x))
+    
+    df=df.assign(EF_10=EF_10)
+    
+    EF_20 = df.params_triple.apply(lambda x: mixture_calc_EF(0.2,x))
+    
+    df=df.assign(EF_20=EF_20)
+
+    return df
+
+df_w_params_w_EFs = calc_EF(df_w_params)
+
+#dict_of_params=dict(zip(df_w_params.index, df_w_params.params_triple))
+
+#params_as_matrix = np.array(list(dict_of_params.values()))  # Shape (rows, 9)
+
+#matrix = np.zeros((len(dict_of_params), 4))  # Ensure correct shape
 
 
-    matrix[:, j] = np.array([mixture_calc_EF(row, params) for row, params in zip(percent_array, params_as_matrix)])
-
-EFs=pd.DataFrame({'EF_1':matrix[:,0],
-            'EF_5':matrix[:,1],
-            'EF_10':matrix[:,2],
-            'EF_20':matrix[:,3]})
+#for j, percent in enumerate([0.01, 0.05, 0.1, 0.2]):
+    
+    #percent_array = np.tile(percent, (len(dict_of_params.keys()), 1))
 
 
-df_w_params_w_EFs=pd.concat([df_w_params, EFs], axis=1)
+    #matrix[:, j] = np.array([mixture_calc_EF(row, params) for row, params in zip(percent_array, params_as_matrix)])
+
+#EFs=pd.DataFrame({'EF_1':matrix[:,0],
+           # 'EF_5':matrix[:,1],
+            #'EF_10':matrix[:,2],
+            #'EF_20':matrix[:,3]})
+
+
+#df_w_params_w_EFs=pd.concat([df_w_params, EFs], axis=1)
 
 
 

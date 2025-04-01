@@ -140,15 +140,13 @@ b_i = unskipped_1_counts_give_tissue[unskipped_1_counts_give_tissue.minority_is_
 
 b_2 = skipped_counts_give_tissue[~skipped_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
-#print(a_i.head())
-#print(b_i.head())
+
 #prepare for optimizer
 a=pd.concat([a_i, a_2])
 b=pd.concat([b_i, b_2])
 
 cluster_names = a.cluster_name
 
-#print(cluster_names)
 
 
 
@@ -159,8 +157,7 @@ alpha_counts = a.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','c
 beta_counts = b.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','cluster_name']))
 
 a.index=cluster_names
-print('going into function later')
-print(a.index)
+
 
 ################### algorthm as same as alt ss now
 
@@ -301,6 +298,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, counts_df_with_cluster_name_i
         
         
         final_cluster_names.append(idx)
+        
         #drop any totally zero values in calculation
         a=exon_a[(exon_b+exon_a)>0]
 
@@ -337,8 +335,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, counts_df_with_cluster_name_i
 
         # perform the EM algorithm with 2 and 3 components if the diptest is significant (assumption of unimodality can be rejected), then perform LR test
         #else:
-        print(exon_a)
-        print(exon_b)
+  
         double_params, Log_Likelihood_double, minimized_a_b_double = est_mixture_of_alphas_and_betas_w_restarts(exon_a, exon_b, 2)
 
 
@@ -365,7 +362,7 @@ def est_alphas_and_betas(counts_df_a, counts_df_b, counts_df_with_cluster_name_i
         
         
         output_of_min_funcs.append(minimized_a_b)
-        print(triple_params)
+
         est_alphas_and_betas_list.append(triple_params)
         
         est_LL.append(Log_Likelihood)
@@ -383,13 +380,10 @@ num_jobs=args.num_jobs
 job_index=args.job_index
 
 
-#print(a)
-#print(a.cluster_names.iloc[1])
 [est_alphas_and_betas_list, output_of_min_funcs, final_cluster_names, est_LL, sum_of_all_reads, est_LL_triple, est_LL_double, params_triple, params_double, p_values_for_LR_test,p_values_for_diptest ] = est_alphas_and_betas(alpha_counts,beta_counts, a, True,True, num_jobs, job_index)
-#print(final_cluster_names)
-#print(len(est_alphas_and_betas_list))
 
-#print(len(final_cluster_names))
+
+
 output_df=pd.DataFrame( {
                 'total_reads_spanning_all_junctions': sum_of_all_reads, 
                 'function_output_emp_bayes':output_of_min_funcs,
