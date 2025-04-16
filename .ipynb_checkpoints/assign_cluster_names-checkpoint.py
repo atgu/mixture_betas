@@ -109,39 +109,29 @@ filtered_exons = (np.abs(log_ratio) <= 1)
 skipped_counts_give_tissue=skipped_counts_give_tissue[filtered_exons==True]
 unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue[filtered_exons==True]
 unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue[filtered_exons==True]
+log_ratio=log_ratio[filtered_exons==True]
 
-def combine_random_rows(df1, df2):
-    # Ensure both DataFrames have the same number of rows
-    if len(df1) != len(df2):
-        raise ValueError("Both DataFrames must have the same number of rows.")
 
-    selected_rows = []
-    # Loop through each row index
-    for i in range(len(df1)):
-        # Randomly choose either 0 or 1 with equal probability
-        if np.random.rand() < 0.5:
-            selected_rows.append(df1.iloc[i])
-        else:
-            selected_rows.append(df2.iloc[i])
-    
-    # Create a new DataFrame from the selected rows
-   # new_df = pd.DataFrame(selected_rows).reset_index(drop=True)
-    new_df = pd.DataFrame(selected_rows)
-    return new_df
 
 # Use the function to create the new DataFrame
-unskipped_random_chosen_counts_give_tissue = combine_random_rows(unskipped_1_counts_give_tissue, unskipped_2_counts_give_tissue)
+#unskipped_random_chosen_counts_give_tissue = combine_random_rows(unskipped_1_counts_give_tissue, unskipped_2_counts_give_tissue)
 
 #figure out which event is lower: skipped or unskipped
-total_reads_supporting_skipped =  skipped_counts_give_tissue.loc[:, ~skipped_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=1)
+total_reads_supporting_skipped =  skipped_counts_give_tissue.loc[:, ~skipped_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=0)
 
-total_reads_supporting_unskipped = unskipped_random_chosen_counts_give_tissue.loc[:, ~unskipped_random_chosen_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=1)
+total_reads_supporting_unskipped = unskipped_1_counts_give_tissue.loc[:, ~unskipped_1_counts_give_tissue.columns.isin(['ID', 'tissue'])].sum(axis=0)
+
+
+#figure out which event is lower: skipped or unskipped
+mean_reads_supporting_skipped =  skipped_counts_give_tissue.loc[:, ~skipped_counts_give_tissue.columns.isin(['ID', 'tissue'])].mean(axis=0)
+
+mean_reads_supporting_unskipped = unskipped_1_counts_give_tissue.loc[:, ~unskipped_1_counts_give_tissue.columns.isin(['ID', 'tissue'])].mean(axis=0)
 
 
 #pick the exon with less total reads across all individuals 
 skipped_is_lower_PSI = total_reads_supporting_skipped.values <= total_reads_supporting_unskipped.values
 
-unskipped_random_chosen_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
+unskipped_1_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
 skipped_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 
@@ -150,17 +140,15 @@ skipped_counts_give_tissue['minority_is_exclusion_event'] = skipped_is_lower_PSI
 ####assign cluster names
 cluster_name = unskipped_1_counts_give_tissue.ID + '_' + skipped_counts_give_tissue.ID + '_' + unskipped_2_counts_give_tissue.ID.apply(lambda x: x.split(':clu')[0]) 
 
-#unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue.assign(cluster_name=cluster_name)
-#unskipped_2_counts_give_tissue=unskipped_2_counts_give_tissue.assign(cluster_name=cluster_name)
 skipped_counts_give_tissue=skipped_counts_give_tissue.assign(cluster_name=cluster_name)
-unskipped_random_chosen_counts_give_tissue=unskipped_random_chosen_counts_give_tissue.assign(cluster_name=cluster_name)
+unskipped_1_counts_give_tissue=unskipped_1_counts_give_tissue.assign(cluster_name=cluster_name)
 
 ####assign to alphas anmd betas
 a_i = skipped_counts_give_tissue[skipped_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
-a_2 = unskipped_random_chosen_counts_give_tissue[~unskipped_random_chosen_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
+a_2 = unskipped_1_counts_give_tissue[~unskipped_1_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
-b_i = unskipped_random_chosen_counts_give_tissue[unskipped_random_chosen_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
+b_i = unskipped_1_counts_give_tissue[unskipped_1_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
 b_2 = skipped_counts_give_tissue[~skipped_counts_give_tissue.minority_is_exclusion_event].sort_values(by='cluster_name', ascending=False)
 
@@ -182,13 +170,7 @@ beta_counts = b.drop(columns=(['ID', 'tissue', 'minority_is_exclusion_event','cl
 
        
 
-
-
-
 output_df=a[['ID', 'tissue', 'minority_is_exclusion_event','cluster_name']]
-
-
-
 
 
 
@@ -196,6 +178,11 @@ output_df=a[['ID', 'tissue', 'minority_is_exclusion_event','cluster_name']]
 output_df=output_df.assign(total_reads_supporting_unskipped=total_reads_supporting_unskipped)
 
 output_df=output_df.assign(total_reads_supporting_unskipped=total_reads_supporting_skipped)
+
+output_df=output_df.assign(mean_reads_supporting_skipped=mean_reads_supporting_skipped)
+
+output_df=output_df.assign(mean_reads_supporting_unskipped=mean_reads_supporting_unskipped)
+
 
 
 #write output df
